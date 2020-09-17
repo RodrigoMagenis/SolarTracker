@@ -1,0 +1,115 @@
+const int sensor1 = A0; /* Sensor LDR de controle do eixo X */
+const int sensor2 = A6; /* Sensor LDR de controle do eixo X */
+const int sensor3 = A4; /* Sensor LDR de controle do eixo X */
+const int sensor4 = A2; /* Sensor LDR de controle do eixo X */
+
+int sensor1Value = 0;
+int sensor2Value = 0;
+int sensor3Value = 0;
+int sensor4Value = 0;
+
+const int sensorPrecision = 100;
+
+void setup() {
+    Serial.begin(9600);
+    
+    // fazer calibração dos sensores caso necessário
+}
+
+void loop() {
+    // aplicar calibração caso ela foi feita - usar função map e constrain
+    updateLDRValues();
+    Serial.print("sensor1: ");
+    Serial.println(sensor1Value);
+    Serial.print("sensor2: ");
+    Serial.println(sensor2Value);
+    Serial.print("sensor3: ");
+    Serial.println(sensor3Value);
+    Serial.print("sensor4: ");
+    Serial.println(sensor4Value);
+    Serial.println("==============================");
+
+    if (sensor1Value - sensor2Value > sensorPrecision && sensor1Value > sensor3Value && sensor1Value > sensor4Value) {
+        //NO
+        //while (sensor1Value - sensor2Value > sensorPrecision) {
+            Serial.println("cond 1");
+//            if (servoXPosition < 180) {
+//                servoXPosition += 5;
+//                servoX.write(servoXPosition);
+//                sensor1Value = analogRead(sensorNO1);
+//                sensor2Value = analogRead(sensorNE2);
+//                sensor3Value = analogRead(sensorSO1);
+//                sensor4Value = analogRead(sensorSE2);
+//            } else {
+//                Serial.println("throw norte oeste");
+//            }
+       // }
+    } else if (sensor2Value - sensor1Value > sensorPrecision && sensor2Value > sensor3Value && sensor2Value > sensor4Value) {
+        //NE
+        //while (sensor2Value - sensor1Value > sensorPrecision) {
+            Serial.println("cond 2");
+//            if (servoXPosition > 0) {
+//                servoXPosition -= 5;
+//                servoX.write(servoXPosition);
+//                sensor1Value = analogRead(sensorNO1);
+//                sensor2Value = analogRead(sensorNE2);
+//                sensor3Value = analogRead(sensorSO1);
+//                sensor4Value = analogRead(sensorSE2);
+//            } else {
+//                Serial.println("throw norte leste");
+//            }
+       // }
+    } else if (sensor3Value - sensor4Value > sensorPrecision && sensor3Value > sensor1Value && sensor3Value > sensor2Value) {
+        //SO
+        //while (sensor3Value - sensor4Value > sensorPrecision) {
+            Serial.println("cond 3");
+//            if (servoXPosition > 0) {
+//                servoXPosition -= 5;
+//                servoX.write(servoXPosition);
+//                sensor1Value = analogRead(sensorNO1);
+//                sensor2Value = analogRead(sensorNE2);
+//                sensor3Value = analogRead(sensorSO1);
+//                sensor4Value = analogRead(sensorSE2);
+//            } else {
+//                Serial.println("throw sul oeste");
+//            }
+       // }
+    } else if (sensor4Value - sensor3Value > sensorPrecision && sensor4Value > sensor1Value && sensor4Value > sensor2Value) {
+        //SE
+        //while (sensor4Value - sensor3Value > sensorPrecision) {
+            Serial.println("cond 4");
+//            if (servoXPosition < 180) {
+//                servoXPosition += 5;
+//                servoX.write(servoXPosition);
+//                sensor1Value = analogRead(sensorNO1);
+//                sensor2Value = analogRead(sensorNE2);
+//                sensor3Value = analogRead(sensorSO1);
+//                sensor4Value = analogRead(sensorSE2);
+//            } else {
+//                Serial.println("throw sul leste");
+//            }
+       // }
+    } else {
+        // log error
+        Serial.println("throw não entrou em nenhuma condição do eixo x");
+    }
+}
+
+void updateLDRValues() {
+  int s1 = 0;
+  int s2 = 0;
+  int s3 = 0;
+  int s4 = 0;
+
+  for (int i = 0; i < 25; i++) {
+    s1 += analogRead(sensor1);
+    s2 += analogRead(sensor2);
+    s3 += analogRead(sensor3);
+    s4 += analogRead(sensor4);
+    delay(200);
+  }
+  sensor1Value = s1 / 25;
+  sensor2Value = s2 / 25;
+  sensor3Value = s3 / 25;
+  sensor4Value = s4 / 25;
+}

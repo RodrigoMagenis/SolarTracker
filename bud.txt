@@ -1,0 +1,37 @@
+//para usar digitando o ângulo
+
+
+#include <Servo.h>
+
+#define pinServo 9
+
+Servo servo1;
+int grau = 0;
+
+void setup() {
+  servo1.attach(pinServo);
+  Serial.begin(9600);
+}
+
+void loop() {
+  while (grau >= 10) {
+    grau -= 10;
+    servo1.write(grau);
+    Serial.print("angulo:");
+ Serial.println(grau);
+    delay(1000);
+  }
+
+  while (grau <= 170) {
+    grau += 10;
+    servo1.write(grau);
+    Serial.print("angulo:");
+    Serial.println(grau);
+    delay(1000);
+  }
+ 
+ 
+ 
+
+ delay(3000000); 
+}

@@ -1,0 +1,109 @@
+#include <Servo.h>
+
+const int sensorNO1 = A0; /* Sensor LDR de controle do eixo X */
+const int sensorNE2 = A1; /* Sensor LDR de controle do eixo X */
+const int sensorSO1 = A2; /* Sensor LDR de controle do eixo Y */
+const int sensorSE2 = A3; /* Sensor LDR de controle do eixo Y */
+
+const int servoXpin = 9;
+const int servoYpin = 10;
+
+const int sensorPrecision = 30;
+
+int sensorNO1Value = 0;
+int sensorNE2Value = 0;
+int sensorSO1Value = 0;
+int sensorSE2Value = 0;
+
+int servoXPosition = 90;
+int servoYPosition = 90;
+
+Servo servoX;
+Servo servoY;
+
+void setup() {
+    Serial.begin(9600);
+    
+    // fazer calibração dos sensores caso necessário
+
+    servoX.attach(servoXpin);
+    servoY.attach(servoYpin);
+}
+
+void loop() {
+    
+    // aplicar calibração caso ela foi feita - usar função map e constrain
+    Serial.println("=======OPA========");
+
+    sensorNO1Value = analogRead(sensorNO1);
+    sensorNE2Value = analogRead(sensorNE2);
+    sensorSO1Value = analogRead(sensorSO1);
+    sensorSE2Value = analogRead(sensorSE2);
+
+    if (sensorNO1Value > sensorNE2Value && sensorNO1Value > sensorSO1Value && sensorNO1Value > sensorSE2Value) {
+        //NO
+        while (sensorNO1Value - sensorNE2Value > sensorPrecision) {
+            Serial.println("indo para oeste");
+            if (servoXPosition < 180) {
+                servoXPosition += 5;
+                servoX.write(servoXPosition);
+                sensorNO1Value = analogRead(sensorNO1);
+                sensorNE2Value = analogRead(sensorNE2);
+                sensorSO1Value = analogRead(sensorSO1);
+                sensorSE2Value = analogRead(sensorSE2);
+            } else {
+                Serial.println("throw norte oeste");
+            }
+        }
+    } else if (sensorNE2Value > sensorNO1Value && sensorNE2Value > sensorSO1Value && sensorNE2Value > sensorSE2Value) {
+        //NE
+        while (sensorNE2Value - sensorNO1Value > sensorPrecision) {
+            Serial.println("indo para leste");
+            if (servoXPosition > 0) {
+                servoXPosition -= 5;
+                servoX.write(servoXPosition);
+                sensorNO1Value = analogRead(sensorNO1);
+                sensorNE2Value = analogRead(sensorNE2);
+                sensorSO1Value = analogRead(sensorSO1);
+                sensorSE2Value = analogRead(sensorSE2);
+            } else {
+                Serial.println("throw norte leste");
+            }
+        }
+    } else if (sensorSO1Value > sensorSE2Value && sensorSO1Value > sensorNO1Value && sensorSO1Value > sensorNE2Value) {
+        //SO
+        while (sensorSO1Value - sensorSE2Value > sensorPrecision) {
+            Serial.println("indo para leste");
+            if (servoXPosition > 0) {
+                servoXPosition -= 5;
+                servoX.write(servoXPosition);
+                sensorNO1Value = analogRead(sensorNO1);
+                sensorNE2Value = analogRead(sensorNE2);
+                sensorSO1Value = analogRead(sensorSO1);
+                sensorSE2Value = analogRead(sensorSE2);
+            } else {
+                Serial.println("throw sul oeste");
+            }
+        }
+    } else if (sensorSE2Value > sensorSO1Value && sensorSE2Value > sensorNO1Value && sensorSE2Value > sensorNE2Value) {
+        //SE
+        while (sensorSE2Value - sensorSO1Value > sensorPrecision) {
+            Serial.println("indo para oeste");
+            if (servoXPosition < 180) {
+                servoXPosition += 5;
+                servoX.write(servoXPosition);
+                sensorNO1Value = analogRead(sensorNO1);
+                sensorNE2Value = analogRead(sensorNE2);
+                sensorSO1Value = analogRead(sensorSO1);
+                sensorSE2Value = analogRead(sensorSE2);
+            } else {
+                Serial.println("throw sul leste");
+            }
+        }
+    } else {
+        // log error
+        Serial.println("throw não entrou em nenhuma condição do eixo x");
+    }
+
+    delay(1500);
+}
