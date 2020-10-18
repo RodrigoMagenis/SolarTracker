@@ -1,200 +1,176 @@
 #include <Servo.h>
+#include <Thread.h>
+#include <ThreadController.h>
 
-/**
- * #####################################
- * Sensores
- * #####################################
- */
 
-const int sensor1 = A0;
-int sensor1Value;
+class SensorLDR {
+    public:
+        SensorLDR(int pin) {
+            this->setPin(pin);
+        }
 
-const int sensor2 = A6;
-int sensor2Value;
+        int read() {
+            this->setValue(analogRead(this->getPin()));
+            return this->getValue();
+        }
 
-const int sensor3 = A4;
-int sensor3Value;
+        int getPin() {
+            return this->pin;
+        }
 
-const int sensor4 = A2;
-int sensor4Value;
+        int getValue() {
+            return this->value;
+        }
+    private:
+        int pin;
+        int value;
 
-const int sensorPrecision = 100;
+        void setPin(int pin) {
+            this->pin = pin;
+        }
 
-bool xcalibrated;
-bool ycalibrated;
+        void setValue(int value) {
+            this->value = value;
+        }
+};
 
-/**
- * #####################################
- * Leds e botões
- * #####################################
- */
+class ServoMotor {
+    public:
+        ServoMotor(int pin) {
+            this->servo.attach(pin);
+        }
 
-const int led1 = 5;
-const int button1 = 13;
+        bool move (int degrees) {
+            if (this->setDegrees(degrees)) {
+                this->servo.write(this->getDegrees());
+                return true;
+            } else {
+                return false;
+            }
+        }
 
-/**
- * #####################################
- * Motores
- * #####################################
- */
+        int getDegrees() {
+            return this->degrees;
+        }
+    private:
+        Servo servo;
+        int pin;
+        int degrees = 90;
 
+        bool setDegrees(int degrees) {
+            if (degrees >= 0 && degrees <= 180 && degrees != this->degrees) {
+                this->degrees = degrees;
+                return true;
+            } else {
+                return false;
+            }
+        }
+};
+
+SensorLDR *sensor1;
+SensorLDR *sensor2;
+SensorLDR *sensor3;
+SensorLDR *sensor4;
+
+const int sensorTolerance = 100;
 const int pitchAdvance = 5; //graus
 
-const int pinServo1 = 9;
-Servo servo1;
-int servo1Value = 90;
+ServoMotor *servo1;
+ServoMotor *servo2;
 
-const int pinServo2 = 11;
-Servo servo2;
-int servo2Value = 90;
+ThreadController *threadController;
+Thread *threadPositionSensors;
+Thread *threadMotorX;
+Thread *threadMotorY;
+Thread *threadPosition;
+
+/**
+ * Compara valores dos sensores LDRs
+ * Retorna verdadeiro caso
+ *      o sensor s1 seja o que mais está recebendo incidência luminosa,
+ *      a diferença dele para o sensor s2 seja maior que a tolerância
+ *
+ * s1: Sensor foco
+ * s2: Sensor dueto
+ * s3: Sensor restante
+ * s4: Sensor restante
+ **/
+bool compare(SensorLDR* s1, SensorLDR* s2, SensorLDR* s3 ,SensorLDR* s4) {
+    if(s1->getValue() - s2->getValue() > sensorTolerance && s1->getValue() > s3->getValue() && s1->getValue() > s4->getValue()) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void updatePositionValues() {
+    if (!threadMotorX->enabled && !threadMotorY->enabled) {
+        threadPositionSensors->enabled = false;
+    } else {
+        sensor1->read();
+        sensor2->read();
+        sensor3->read();
+        sensor4->read();
+    }
+}
+
+void moveXAxisEngine() {
+    if (compare(sensor1, sensor2, sensor3, sensor4) || compare(sensor3, sensor4, sensor1, sensor2)) {
+        servo1->move(servo1->getDegrees() - pitchAdvance);
+    } else if (compare(sensor2, sensor1, sensor3, sensor4) || compare(sensor4, sensor3, sensor1, sensor2)) {
+        servo1->move(servo1->getDegrees() + pitchAdvance);
+    } else {
+        threadMotorX->enabled = false;
+    }
+}
+
+void moveYAxisEngine() {
+    if (compare(sensor1, sensor4, sensor2, sensor3) || compare(sensor2, sensor3, sensor1, sensor4)) {
+        servo2->move(servo2->getDegrees() - pitchAdvance);
+    } else if (compare(sensor3, sensor2, sensor1, sensor4) || compare(sensor4, sensor1, sensor2, sensor3)) {
+        servo2->move(servo2->getDegrees() + pitchAdvance);
+    } else {
+        threadMotorY->enabled = false;
+    }
+}
+
+void updatePosition() {
+    threadPositionSensors->enabled = true;
+    threadMotorX->enabled = true;
+    threadMotorY->enabled = true;
+}
 
 void setup() {
-    pinMode(led1, OUTPUT);
-    pinMode(button1, INPUT);
-    servo1.attach(pinServo1);
-    delay(1000);
-    servo2.attach(pinServo2);
-
     Serial.begin(9600);
-    // fazer calibração dos sensores caso necessário
+    sensor1 = new SensorLDR(A0);
+    sensor2 = new SensorLDR(A6);
+    sensor3 = new SensorLDR(A4);
+    sensor4 = new SensorLDR(A2);
+
+    servo1 = new ServoMotor(9);
+    servo2 = new ServoMotor(11);
+
+    threadPositionSensors->setInterval(500);
+    threadPositionSensors->onRun(updatePositionValues);
+    threadPositionSensors->enabled = false;
+
+    threadMotorX->setInterval(500);
+    threadMotorX->onRun(moveXAxisEngine);
+    threadMotorX->enabled = false;
+
+    threadMotorY->setInterval(500);
+    threadMotorY->onRun(moveYAxisEngine);
+    threadMotorY->enabled = false;
+
+    threadPosition->setInterval(900000); // 15 minutes
+    threadPosition->onRun(updatePosition);
+
+    threadController->add(threadPositionSensors);
+    threadController->add(threadMotorX);
+    threadController->add(threadMotorY);
+    threadController->add(threadPosition);
 }
 
 void loop() {
-    xcalibrated = false;
-    ycalibrated = false;
-
-    while (xcalibrated == false) {
-        updateLDRValues();
-        Serial.print("sensor1: ");
-        Serial.print(sensor1Value);
-        Serial.print("          sensor2: ");
-        Serial.print(sensor2Value);
-        Serial.print("          sensor3: ");
-        Serial.print(sensor3Value);
-        Serial.print("          sensor4: ");
-        Serial.print(sensor4Value);
-        //Serial.println("==============================");
-        Serial.print("          ");
-
-        if (sensor1Value - sensor2Value > sensorPrecision && sensor1Value > sensor3Value && sensor1Value > sensor4Value) {
-            //NO
-                Serial.println("cond 1");
-                if (servo1Value >= (0 + pitchAdvance)) {
-                servo1Value -= pitchAdvance;
-                } else {
-                    Serial.println("limit cond 1");
-                }
-                
-        } else if (sensor2Value - sensor1Value > sensorPrecision && sensor2Value > sensor3Value && sensor2Value > sensor4Value) {
-            //NE
-            Serial.println("cond 2");
-            if (servo1Value <= (180 - pitchAdvance)) {
-                    servo1Value += pitchAdvance;
-            } else {
-                Serial.println("limit cond 2");
-            }
-        } else if (sensor3Value - sensor4Value > sensorPrecision && sensor3Value > sensor1Value && sensor3Value > sensor2Value) {
-            //SO
-            Serial.println("cond 3");
-            if (servo1Value >= (0 + pitchAdvance)) {
-                servo1Value -= pitchAdvance;
-            } else {
-                Serial.println("limit cond 3");
-            }
-        } else if (sensor4Value - sensor3Value > sensorPrecision && sensor4Value > sensor1Value && sensor4Value > sensor2Value) {
-            //SE
-            Serial.println("cond 4");
-            if (servo1Value <= (180 - pitchAdvance)) {
-                    servo1Value += pitchAdvance;
-            } else {
-                Serial.println("limit cond 4");
-            }
-        } else {
-            // log error
-            Serial.println("throw");
-            xcalibrated = true;
-        }
-
-        servo1.write(servo1Value);
-    }
-
-    Serial.println("x calibrado, dormindo zzz");
-    delay(2000);
-    
-    while (ycalibrated == false) {
-        updateLDRValues();
-        Serial.print("sensor1: ");
-        Serial.print(sensor1Value);
-        Serial.print("          sensor2: ");
-        Serial.print(sensor2Value);
-        Serial.print("          sensor3: ");
-        Serial.print(sensor3Value);
-        Serial.print("          sensor4: ");
-        Serial.print(sensor4Value);
-        Serial.print("          ");
-
-        if (sensor1Value - sensor4Value > sensorPrecision && sensor1Value > sensor3Value && sensor1Value > sensor2Value) {
-            //NO
-                Serial.println("cond 1");
-                if (servo2Value >= (0 + pitchAdvance)) {
-                servo2Value -= pitchAdvance;
-                } else {
-                    Serial.println("limit cond 1");
-                }
-                
-        } else if (sensor2Value - sensor3Value > sensorPrecision && sensor2Value > sensor1Value && sensor2Value > sensor4Value) {
-            //SE
-            Serial.println("cond 2");
-            if (servo2Value >= (0 + pitchAdvance)) {
-                servo2Value -= pitchAdvance;
-                } else {
-                Serial.println("limit cond 2");
-            }
-        } else if (sensor3Value - sensor2Value > sensorPrecision && sensor3Value > sensor1Value && sensor3Value > sensor4Value) {
-            //SO
-            Serial.println("cond 3");
-            if (servo2Value <= (180 - pitchAdvance)) {
-                    servo2Value += pitchAdvance;
-            } else {
-                Serial.println("limit cond 3");
-            }
-        } else if (sensor4Value - sensor1Value > sensorPrecision && sensor4Value > sensor3Value && sensor4Value > sensor2Value) {
-            //NE
-            Serial.println("cond 4");
-            if (servo2Value <= (180 - pitchAdvance)) {
-                    servo2Value += pitchAdvance;
-            } else {
-                Serial.println("limit cond 4");
-            }
-        } else {
-            // log error
-            Serial.println("throw");
-            ycalibrated = true;
-        }
-
-        servo2.write(servo2Value);
-    }
-
-    Serial.println("y calibrado, dormindo zzz");
-    delay(5000);
-}
-
-void updateLDRValues() {
-    int s1 = 0;
-    int s2 = 0;
-    int s3 = 0;
-    int s4 = 0;
-
-    for (int i = 0; i < 5; i++) {
-        s1 += analogRead(sensor1);
-        s2 += analogRead(sensor2);
-        s3 += analogRead(sensor3);
-        s4 += analogRead(sensor4);
-        delay(200);
-    }
-
-    sensor1Value = s1 / 5;
-    sensor2Value = s2 / 5;
-    sensor3Value = s3 / 5;
-    sensor4Value = s4 / 5;
+    threadController->run();
 }
