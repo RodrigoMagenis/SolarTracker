@@ -3,6 +3,8 @@
 #include <ThreadController.h>
 #include <Wire.h>
 #include <Adafruit_INA219.h>
+#include <SPI.h>
+#include <SD.h>
 
 
 class SensorLDR {
@@ -154,18 +156,34 @@ class PowerSensor {
 
 class Data {
    public:
-       unsigned long getTime() {
-           return this->time;
+        Data() {
+            this->setTime(millis());
+        }
+        void setPowerSensor(PowerSensor *powerSensor) {
+           this->powerSensor = powerSensor;
+       }
+       
+       void setLDRs(SensorLDR *ldr1, SensorLDR *ldr2, SensorLDR *ldr3, SensorLDR *ldr4) {
+           this->ldr1 = ldr1;
+           this->ldr2 = ldr2;
+           this->ldr3 = ldr3;
+           this->ldr4 = ldr4;
        }
 
-       void setPowerData(SensorLDR* obj[]) {
-           this->sensors = obj;
+       void setServos(ServoMotor *servo1, ServoMotor *servo2) {
+           this->servo1 = servo1;
+           this->servo2 = servo2;
        }
 
    private:
        unsigned long time;
-       PowerData* powerData;
-       SensorLDR* sensors[];
+       PowerSensor *powerSensor;
+       SensorLDR *ldr1;
+       SensorLDR *ldr2;
+       SensorLDR *ldr3;
+       SensorLDR *ldr4;
+       ServoMotor *servo1;
+       ServoMotor *servo2;
 
        void setTime(unsigned long time) {
            this->time = time;
@@ -255,6 +273,12 @@ void updatePowerValues() {
 
 void saveData() {
 //do something
+
+// Arduino Mega
+// SS 53
+// MOSI 51
+// MISO 50
+// SCK 52
 }
 
 void setup() {
@@ -269,15 +293,15 @@ void setup() {
     servo1 = new ServoMotor(9);
     servo2 = new ServoMotor(11);
 
-    threadPositionSensors->setInterval(500);
+    threadPositionSensors->setInterval(4000);
     threadPositionSensors->onRun(updatePositionValues);
     threadPositionSensors->enabled = false;
 
-    threadMotorX->setInterval(500);
+    threadMotorX->setInterval(4000);
     threadMotorX->onRun(moveXAxisEngine);
     threadMotorX->enabled = false;
 
-    threadMotorY->setInterval(500);
+    threadMotorY->setInterval(4000);
     threadMotorY->onRun(moveYAxisEngine);
     threadMotorY->enabled = false;
 
@@ -292,10 +316,10 @@ void setup() {
 
     threadController->add(threadPositionSensors);
     threadController->add(threadMotorX);
-    //threadController->add(threadMotorY);
+    threadController->add(threadMotorY);
     threadController->add(threadPosition);
-    //threadController->add(threadPowerSensors);
-    //threadController->add(threadSaveData);
+    threadController->add(threadPowerSensors);
+    threadController->add(threadSaveData);
 }
 
 void loop() {
