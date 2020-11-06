@@ -3,8 +3,8 @@
 #include <ThreadController.h>
 #include <Wire.h>
 #include <Adafruit_INA219.h>
-#include <SPI.h>
-#include <SD.h>
+// #include <SPI.h>
+// #include <SD.h>
 
 
 class SensorLDR {
@@ -40,8 +40,18 @@ class SensorLDR {
 
 class ServoMotor {
     public:
-        ServoMotor(int pin) {
+        /**
+        * @param pin sets the motor control PWM pin
+        * @param pitchAdvance sets the number of degrees of motor advance
+        * @param upLim sets the upper limit of degrees allowed for the motor. (0 ~ 180)
+        * @param lowLim sets the bottom limit of degrees allowed for the engine. (0 ~ 180)
+        **/
+        ServoMotor(int pin, int pitchAdvance = 5, int upperLimit = 180, int bottomLimit = 0) {
+            this->servo = new Servo();
             this->servo->attach(pin);
+            this->degrees = (upperLimit + bottomLimit) / 2;
+            this->upperLimit = upperLimit;
+            this->bottomLimit = bottomLimit;
         }
 
         bool move (int degrees) {
@@ -59,10 +69,12 @@ class ServoMotor {
     private:
         Servo *servo;
         int pin;
-        int degrees = 90;
+        int degrees;
+        int upperLimit;
+        int bottomLimit;
 
         bool setDegrees(int degrees) {
-            if (degrees >= 0 && degrees <= 180 && degrees != this->degrees) {
+            if (degrees >= this->bottomLimit && degrees <= this->upperLimit && degrees != this->degrees) {
                 this->degrees = degrees;
                 return true;
             } else {
@@ -76,7 +88,7 @@ class PowerSensor {
         PowerSensor() {
             if (!this->ina219->begin()) {
                 Serial.println("Failed to find INA219 chip");
-                while (1) { delay(10); }
+                while (1) { delay(1000); }
             }
 
             this->ina219->setCalibration_32V_2A();
@@ -154,41 +166,41 @@ class PowerSensor {
         }
 };
 
-class Data {
-   public:
-        Data() {
-            this->setTime(millis());
-        }
-        void setPowerSensor(PowerSensor *powerSensor) {
-           this->powerSensor = powerSensor;
-       }
+// class Data {
+//    public:
+//         Data() {
+//             this->setTime(millis());
+//         }
+//         void setPowerSensor(PowerSensor *powerSensor) {
+//            this->powerSensor = powerSensor;
+//        }
        
-       void setLDRs(SensorLDR *ldr1, SensorLDR *ldr2, SensorLDR *ldr3, SensorLDR *ldr4) {
-           this->ldr1 = ldr1;
-           this->ldr2 = ldr2;
-           this->ldr3 = ldr3;
-           this->ldr4 = ldr4;
-       }
+//        void setLDRs(SensorLDR *ldr1, SensorLDR *ldr2, SensorLDR *ldr3, SensorLDR *ldr4) {
+//            this->ldr1 = ldr1;
+//            this->ldr2 = ldr2;
+//            this->ldr3 = ldr3;
+//            this->ldr4 = ldr4;
+//        }
 
-       void setServos(ServoMotor *servo1, ServoMotor *servo2) {
-           this->servo1 = servo1;
-           this->servo2 = servo2;
-       }
+//        void setServos(ServoMotor *servo1, ServoMotor *servo2) {
+//            this->servo1 = servo1;
+//            this->servo2 = servo2;
+//        }
 
-   private:
-       unsigned long time;
-       PowerSensor *powerSensor;
-       SensorLDR *ldr1;
-       SensorLDR *ldr2;
-       SensorLDR *ldr3;
-       SensorLDR *ldr4;
-       ServoMotor *servo1;
-       ServoMotor *servo2;
+//    private:
+//        unsigned long time;
+//        PowerSensor *powerSensor;
+//        SensorLDR *ldr1;
+//        SensorLDR *ldr2;
+//        SensorLDR *ldr3;
+//        SensorLDR *ldr4;
+//        ServoMotor *servo1;
+//        ServoMotor *servo2;
 
-       void setTime(unsigned long time) {
-           this->time = time;
-       }
-};
+//        void setTime(unsigned long time) {
+//            this->time = time;
+//        }
+// };
 
 SensorLDR *positionSensor1;
 SensorLDR *positionSensor2;
@@ -197,7 +209,7 @@ SensorLDR *positionSensor4;
 
 PowerSensor *powerSensor;
 
-const int sensorTolerance = 100;
+const int sensorTolerance = 80;
 const int pitchAdvance = 5; //graus
 
 ServoMotor *servo1;
@@ -238,6 +250,18 @@ void updatePositionValues() {
         positionSensor2->read();
         positionSensor3->read();
         positionSensor4->read();
+        Serial.print("s1: ");
+        Serial.print(positionSensor1->getValue());
+        Serial.print("   s2: ");
+        Serial.print(positionSensor2->getValue());
+        Serial.print("   s3: ");
+        Serial.print(positionSensor3->getValue());
+        Serial.print("   s4: ");
+        Serial.print(positionSensor4->getValue());
+        Serial.print("   SERVOX: ");
+        Serial.print(servo1->getDegrees());
+        Serial.print("   SERVOY: ");
+        Serial.println(servo2->getDegrees());
     }
 }
 
@@ -262,13 +286,15 @@ void moveYAxisEngine() {
 }
 
 void updatePosition() {
+    Serial.println("updatePosition");
     threadPositionSensors->enabled = true;
     threadMotorX->enabled = true;
-    //threadMotorY->enabled = true;
+    threadMotorY->enabled = true;
 }
 
 void updatePowerValues() {
-    powerSensor->read();
+    Serial.println("updatePowerValues");
+    // powerSensor->read();
 }
 
 void saveData() {
@@ -283,43 +309,48 @@ void saveData() {
 
 void setup() {
     Serial.begin(9600);
-    positionSensor1 = new SensorLDR(A0);
-    positionSensor2 = new SensorLDR(A6);
-    positionSensor3 = new SensorLDR(A4);
-    positionSensor4 = new SensorLDR(A2);
+    while(!Serial);
+    positionSensor1 = new SensorLDR(A2);
+    positionSensor2 = new SensorLDR(A4);
+    positionSensor3 = new SensorLDR(A0);
+    positionSensor4 = new SensorLDR(A6);
 
-    powerSensor = new PowerSensor();
+    //powerSensor = new PowerSensor(); Só funciona com o sensor conectado
 
-    servo1 = new ServoMotor(9);
-    servo2 = new ServoMotor(11);
+    servo1 = new ServoMotor(11);
+    servo2 = new ServoMotor(9, 5, 180, 130);
 
-    threadPositionSensors->setInterval(4000);
+    threadPositionSensors = new Thread();
+    threadPositionSensors->setInterval(1000);
     threadPositionSensors->onRun(updatePositionValues);
-    threadPositionSensors->enabled = false;
 
-    threadMotorX->setInterval(4000);
+    threadMotorX = new Thread();
+    threadMotorX->setInterval(1500);
     threadMotorX->onRun(moveXAxisEngine);
-    threadMotorX->enabled = false;
 
-    threadMotorY->setInterval(4000);
+    threadMotorY = new Thread();
+    threadMotorY->setInterval(1500);
     threadMotorY->onRun(moveYAxisEngine);
-    threadMotorY->enabled = false;
 
-    threadPosition->setInterval(900000); // 15 minutes
+    threadPosition = new Thread();
+    threadPosition->setInterval(5000); // 15 minutes
     threadPosition->onRun(updatePosition);
 
-    threadPowerSensors->setInterval(300000); // 5 minutes
+    threadPowerSensors = new Thread();
+    threadPowerSensors->setInterval(1000); // 5 minutes
     threadPowerSensors->onRun(updatePowerValues);
 
+    threadSaveData = new Thread();
     threadSaveData->setInterval(300000); // 5 minutes
     threadSaveData->onRun(saveData);
 
+    threadController = new ThreadController();
     threadController->add(threadPositionSensors);
     threadController->add(threadMotorX);
     threadController->add(threadMotorY);
     threadController->add(threadPosition);
-    threadController->add(threadPowerSensors);
-    threadController->add(threadSaveData);
+    // threadController->add(threadPowerSensors);
+    // threadController->add(threadSaveData);
 }
 
 void loop() {
