@@ -3,8 +3,8 @@
 #include <ThreadController.h>
 #include <Wire.h>
 #include <Adafruit_INA219.h>
-// #include <SPI.h>
-// #include <SD.h>
+#include <SPI.h>
+#include <SD.h>
 
 
 class SensorLDR {
@@ -42,16 +42,26 @@ class ServoMotor {
     public:
         /**
         * @param pin sets the motor control PWM pin
-        * @param pitchAdvance sets the number of degrees of motor advance
         * @param upLim sets the upper limit of degrees allowed for the motor. (0 ~ 180)
         * @param lowLim sets the bottom limit of degrees allowed for the engine. (0 ~ 180)
+        * @param pitchAdvance sets the number of degrees of motor advance
         **/
-        ServoMotor(int pin, int pitchAdvance = 5, int upperLimit = 180, int bottomLimit = 0) {
+        ServoMotor(int pin, int upperLimit = 180, int bottomLimit = 0, int pitchAdvance = 5) {
+            this->setPin(pin);
             this->servo = new Servo();
-            this->servo->attach(pin);
-            this->degrees = (upperLimit + bottomLimit) / 2;
-            this->upperLimit = upperLimit;
-            this->bottomLimit = bottomLimit;
+            this->servo->attach(this->getPin());
+            this->setUpperLimit(upperLimit);
+            this->setBottomLimit(bottomLimit);
+            this->setPitchAdvance(pitchAdvance);
+            this->move((upperLimit + bottomLimit) / 2);
+        }
+
+        bool increaseDegree() {
+            return this->move(this->getDegrees() + this->getPitchAdvance());
+        }
+
+        bool decreaseDegree() {
+            return this->move(this->getDegrees() - this->getPitchAdvance());
         }
 
         bool move (int degrees) {
@@ -66,12 +76,29 @@ class ServoMotor {
         int getDegrees() {
             return this->degrees;
         }
+
+        int getUpperLimit() {
+            return this->upperLimit;
+        }
+
+        int getBottomLimit() {
+            return this->bottomLimit;
+        }
+
+        int getPitchAdvance() {
+            return this->pitchAdvance;
+        }
+
+        int getPin() {
+            return this->pin;
+        }
     private:
         Servo *servo;
         int pin;
         int degrees;
         int upperLimit;
         int bottomLimit;
+        int pitchAdvance;
 
         bool setDegrees(int degrees) {
             if (degrees >= this->bottomLimit && degrees <= this->upperLimit && degrees != this->degrees) {
@@ -79,6 +106,34 @@ class ServoMotor {
                 return true;
             } else {
                 return false;
+            }
+        }
+
+        void setPin(int pin) {
+            this->pin = pin;
+        }
+
+        void setUpperLimit(int upperLimit) {
+            if (upperLimit <= 180) {
+                this->upperLimit = upperLimit;
+            } else {
+                this->upperLimit = 180;
+            }
+        }
+
+        void setBottomLimit(int bottomLimit) {
+            if (bottomLimit >= 0) {
+                this->bottomLimit = bottomLimit;
+            } else {
+                this->bottomLimit = 0;
+            }
+        }
+
+        void setPitchAdvance(int pitchAdvance) {
+            if (pitchAdvance >= 1 && pitchAdvance <= 180) {
+                this->pitchAdvance = pitchAdvance;
+            } else {
+                this->pitchAdvance = 1;
             }
         }
 };
@@ -166,41 +221,79 @@ class PowerSensor {
         }
 };
 
-// class Data {
-//    public:
-//         Data() {
-//             this->setTime(millis());
-//         }
-//         void setPowerSensor(PowerSensor *powerSensor) {
-//            this->powerSensor = powerSensor;
-//        }
+class Data {
+    public:
+        Data() {
+            this->setTime(millis());
+        }
+        void setPowerSensor(PowerSensor *powerSensor) {
+           this->powerSensor = powerSensor;
+        }
        
-//        void setLDRs(SensorLDR *ldr1, SensorLDR *ldr2, SensorLDR *ldr3, SensorLDR *ldr4) {
-//            this->ldr1 = ldr1;
-//            this->ldr2 = ldr2;
-//            this->ldr3 = ldr3;
-//            this->ldr4 = ldr4;
-//        }
+        void setLDRs(SensorLDR *ldr1, SensorLDR *ldr2, SensorLDR *ldr3, SensorLDR *ldr4) {
+            this->ldr1 = ldr1;
+            this->ldr2 = ldr2;
+            this->ldr3 = ldr3;
+            this->ldr4 = ldr4;
+        }
 
-//        void setServos(ServoMotor *servo1, ServoMotor *servo2) {
-//            this->servo1 = servo1;
-//            this->servo2 = servo2;
-//        }
+        void setServos(ServoMotor *servo1, ServoMotor *servo2) {
+            this->servo1 = servo1;
+            this->servo2 = servo2;
+        }
 
-//    private:
-//        unsigned long time;
-//        PowerSensor *powerSensor;
-//        SensorLDR *ldr1;
-//        SensorLDR *ldr2;
-//        SensorLDR *ldr3;
-//        SensorLDR *ldr4;
-//        ServoMotor *servo1;
-//        ServoMotor *servo2;
+        void persistData() {
+            this->file = SD.open("log.csv", FILE_WRITE);
+            if (this->file) {
+                this->file.print(this->getTime());
+                this->addSeparator();
+                // this->file->print(this->powerSensor->getVoltage());
+                // this->addSeparator();
+                // this->file->print(this->powerSensor->getCurrent()):
+                // this->addSeparator();
+                // this->file->print(this->powerSensor->getPower());
+                // this->addSeparator();
+                this->file.print(this->ldr1->getValue());
+                this->addSeparator();
+                this->file.print(this->ldr2->getValue());
+                this->addSeparator();
+                this->file.print(this->ldr3->getValue());
+                this->addSeparator();
+                this->file.print(this->ldr4->getValue());
+                this->addSeparator();
+                this->file.print(this->servo1->getDegrees());
+                this->addSeparator();
+                this->file.println(this->servo2->getDegrees());
+                this->file.close();
+                Serial.println("opabier");
+            } else {
+                Serial.println("Failed to open CSV file");
+            }
+        }
 
-//        void setTime(unsigned long time) {
-//            this->time = time;
-//        }
-// };
+        unsigned long getTime() {
+            return this->time;
+        }
+
+    private:
+        unsigned long time;
+        PowerSensor *powerSensor;
+        SensorLDR *ldr1;
+        SensorLDR *ldr2;
+        SensorLDR *ldr3;
+        SensorLDR *ldr4;
+        ServoMotor *servo1;
+        ServoMotor *servo2;
+        File file;
+
+        void setTime(unsigned long time) {
+            this->time = time;
+        }
+
+        void addSeparator() {
+            this->file.print(";");
+        }
+};
 
 SensorLDR *positionSensor1;
 SensorLDR *positionSensor2;
@@ -210,7 +303,6 @@ SensorLDR *positionSensor4;
 PowerSensor *powerSensor;
 
 const int sensorTolerance = 80;
-const int pitchAdvance = 5; //graus
 
 ServoMotor *servo1;
 ServoMotor *servo2;
@@ -267,9 +359,9 @@ void updatePositionValues() {
 
 void moveXAxisEngine() {
     if (compare(positionSensor1, positionSensor2, positionSensor3, positionSensor4) || compare(positionSensor3, positionSensor4, positionSensor1, positionSensor2)) {
-        servo1->move(servo1->getDegrees() - pitchAdvance);
+        servo1->decreaseDegree();
     } else if (compare(positionSensor2, positionSensor1, positionSensor3, positionSensor4) || compare(positionSensor4, positionSensor3, positionSensor1, positionSensor2)) {
-        servo1->move(servo1->getDegrees() + pitchAdvance);
+        servo1->increaseDegree();
     } else {
         threadMotorX->enabled = false;
     }
@@ -277,9 +369,12 @@ void moveXAxisEngine() {
 
 void moveYAxisEngine() {
     if (compare(positionSensor1, positionSensor4, positionSensor2, positionSensor3) || compare(positionSensor2, positionSensor3, positionSensor1, positionSensor4)) {
-        servo2->move(servo2->getDegrees() - pitchAdvance);
+        servo2->decreaseDegree();
     } else if (compare(positionSensor3, positionSensor2, positionSensor1, positionSensor4) || compare(positionSensor4, positionSensor1, positionSensor2, positionSensor3)) {
-        servo2->move(servo2->getDegrees() + pitchAdvance);
+        if (!servo2->increaseDegree()) {
+            servo2->move(90);
+            servo1->move(90);
+        }
     } else {
         threadMotorY->enabled = false;
     }
@@ -298,7 +393,11 @@ void updatePowerValues() {
 }
 
 void saveData() {
-//do something
+    Data *data = new Data();
+    //data->setPowerSensor(this->powerSensor);
+    data->setLDRs(positionSensor1, positionSensor2, positionSensor3, positionSensor4);
+    data->setServos(servo1, servo2);
+    data->persistData();
 
 // Arduino Mega
 // SS 53
@@ -310,15 +409,21 @@ void saveData() {
 void setup() {
     Serial.begin(9600);
     while(!Serial);
+
     positionSensor1 = new SensorLDR(A2);
     positionSensor2 = new SensorLDR(A4);
     positionSensor3 = new SensorLDR(A0);
     positionSensor4 = new SensorLDR(A6);
 
+    servo1 = new ServoMotor(11);
+    servo2 = new ServoMotor(9, 110, 50);
+
     //powerSensor = new PowerSensor(); Só funciona com o sensor conectado
 
-    servo1 = new ServoMotor(11);
-    servo2 = new ServoMotor(9, 5, 180, 130);
+    if(!SD.begin(4)) {
+        Serial.println("Failed to find SD chip");
+        while(1) {delay(1000);};
+    }
 
     threadPositionSensors = new Thread();
     threadPositionSensors->setInterval(1000);
@@ -341,7 +446,7 @@ void setup() {
     threadPowerSensors->onRun(updatePowerValues);
 
     threadSaveData = new Thread();
-    threadSaveData->setInterval(300000); // 5 minutes
+    threadSaveData->setInterval(1000); // 5 minutes
     threadSaveData->onRun(saveData);
 
     threadController = new ThreadController();
@@ -350,7 +455,7 @@ void setup() {
     threadController->add(threadMotorY);
     threadController->add(threadPosition);
     // threadController->add(threadPowerSensors);
-    // threadController->add(threadSaveData);
+    threadController->add(threadSaveData);
 }
 
 void loop() {
